@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="Mohamad OUEIDAT">
+<meta name="author" content="Karim CHEHADE">
+<title>Projet M1</title>
+<style>
+/* Cette partie définit les styles CSS pour la mise en forme de notre page HTML. 
+Elle comprend des règles de style pour la zone de dépôt de fichiers, les éléments de fond vidéo,
+l'alignement du contenu, les colonnes, les en-têtes, les images, ainsi que pour masquer certains éléments. */
+
+        .drop-zone {
+            width: 300px;
+            height: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        .drop-zone-symbol {
+            font-size: 24px;
+        }
+        #file-input {
+            display: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: auto;
+        }
+        .video-background {
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: -1;
+            overflow: hidden;
+        }
+        .headeralign {
+            display: flex;
+            justify-content: center;
+
+            align-items: center;
+            text-align: center;
+
+            background-color: #F5F5DC;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: 90vh;
+        }
+        .column {
+            width: 40%;
+        }
+        h1,h2,h3,h4 {
+            display: flex;
+            justify-content: center;
+            color: white;
+            padding: 20px;
+            margin: 0;
+        }
+        img {
+            display: flex;
+            justify-content: center;
+            max-width: auto;
+            height: 250px;
+            margin: 0 auto;
+        }
+        #inferenceImage {
+            display: none;
+        }
+        .logo {
+            width: 130px;
+            height: auto;
+            display: flex;
+            margin-right:5px; 
+            
+            
+        }
+    </style>
+</head>
+<body>
+<!-- Partie pour la vidéo d'arrière-plan -->
+<video autoplay muted loop id="myVideo" class="video-background">
+    <source src="{{ url_for('static', filename='videoplayback_(1).mp4') }}" type="video/mp4">
+</video>
+
+<div class="headeralign">
+    <!-- Titre de la page -->
+    <h1 style="margin-left:50vh; color: Black;">Dénombrement cellulaire automatisé par IA </h1>
+    <!-- Logo -->
+    <img src="{{ url_for('static', filename='ISEN-Ouest.png') }}" alt="Logo" class="logo">
+</div>
+
+<div id="imageContainer"></div>
+<!-- Formulaire pour télécharger les images -->
+<form action="#" method="post" enctype="multipart/form-data">
+<div class="container">
+    <div align="center" class="column">
+        <h2 >Télécharger l'image vide</h2>
+        <!-- Zone de dépôt pour l'image vide -->
+        <div class="drop-zone" id="dropZone1" onclick="fileInput1.click()">
+            <div class="drop-zone-symbol">Déposer ou ajouter un fichier</div>
+        </div>
+        <input hidden="true" type="file" name="fileInput1" id="fileInput1" required>
+        <br>
+        <div id="uploadedImage1"   onclick="openImageInNewTab1()" >
+        </div>
+        <!-- Affichage de l'image vide sans annotations -->
+        {% if result %}
+            <img id="myImage1" style="padding-top: 4px;" src="{{ url_for('static', filename='upload1/' ~ result.image_path1.split('/')[-1]) }}" onclick="openImageInNewTab('{{ url_for('static', filename='upload1/' ~ result.image_path1.split('/')[-1]) }}')"  alt="Inference Result">
+        {% endif %}
+        <br>
+        <h2 >Télécharger l'image point final</h2>
+        <!-- Zone de dépôt pour l'image point final -->
+        <div class="drop-zone" id="dropZone2" onclick="fileInput2.click()">
+             <div class="drop-zone-symbol">Déposer ou ajouter un fichier</div>
+         </div>
+         <input hidden="true" type="file" name="fileInput2" id="fileInput2" required>
+         <br>
+         <div id="uploadedImage2" onclick="openImageInNewTab1('uploadedImage2')"></div>
+         <!-- Affichage de l'image point final sans annotations -->
+         {% if result %}
+         <img id="myImage2" style="padding-top: 4px;" src="{{ url_for('static', filename='upload2/' ~ result.image_path2.split('/')[-1]) }}" onclick="openImageInNewTab('{{ url_for('static', filename='upload2/' ~ result.image_path2.split('/')[-1]) }}')" alt="Inference Result">
+         {% endif %}
+    </div>
+    <div width = "20%">
+         <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+         <div  align="center">
+         <h2 color="white"><label>Inférence</label></h2>
+         <!-- Bouton pour soumettre le formulaire -->
+         <input type="submit" value="Upload">
+         <br><br>
+         <br><br><br><br><br><br>
+         <!-- Affichage du nombre Total des cellules (point final-vide) et de la Concentration de cellules -->
+         {% if result %}
+            <h2>Le Nombre Total des cellules<br>(point final-vide)<br> est: {{ result.num3 }}<br>
+            La concentration cellulaire (cellules/ml) <br>est :{{ result.num4 }}E8 cell/ml</h2>
+        {% endif %}
+        </div>
+    </div>
+    <div class="column">
+        <h2>Résultat de l'inférence sur l'image vide</h2>
+        <!-- Affichage de l'image vide avec annotations -->
+        {% if result %}
+            <img src="{{ url_for('static', filename='upload1/assembled_image.jpg')}}" onclick="openImageInNewTab('{{ url_for('static', filename='upload1/assembled_image.jpg')}}')"  alt="Inference Result">
+            <h3>Le nombre de cellules détectées est: {{ result.num1 }}</h3>
+        {% endif %}
+        <br>
+        <h2>Résultat de l'Inférence sur l'image point final</h2>
+        <!-- Affichage de l'image point final avec annotations -->
+        {% if result %}
+            <img src="{{ url_for('static', filename='upload2/assembled_image.jpg')}}" onclick="openImageInNewTab('{{ url_for('static', filename='upload2/assembled_image.jpg')}}')"  alt="Inference Result">
+            <h3>Le nombre de cellules détectées est: {{ result.num2 }}</h3>
+        {% endif %}
+    </div>
+</div>
+</form>
+<footer>
+<hr>
+    <p style="display: flex;justify-content: right;">Mohamad OUEIDAT & Karim CHEHADE</p>
+</footer>
+<script>
+    // Gestion des éléments pour la zone de dépôt de l’image vide.
+    const dropZone1 = document.getElementById('dropZone1');
+    const fileInput1 = document.getElementById('fileInput1');
+    const inferenceImage1 = document.getElementById('myImage1');
+    const uploadedImage1 = document.getElementById('uploadedImage1');
+    // Gestion des éléments pour la zone de dépôt de l’image point final.
+    const dropZone2 = document.getElementById('dropZone2');
+    const fileInput2 = document.getElementById('fileInput2');
+    const inferenceImage2 = document.getElementById('myImage2');
+    const uploadedImage2 = document.getElementById('uploadedImage2');
+    let currentFile = null;
+    let uploadedImageSrc1 = null;
+
+    // Gestion de l’événement du survol de la zone de dépôt pour l'image vide.
+    dropZone1.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        dropZone1.classList.add('dragged');
+    });
+    // Gestion de l’événement de la sortie du survol de la zone de dépôt pour l'image vide.
+    dropZone1.addEventListener('dragleave', () => {
+        dropZone1.classList.remove('dragged');
+    });
+    // Gestion de l’événement du dépôt de l'image vide.
+    dropZone1.addEventListener('drop', (event) => {
+        event.preventDefault();
+        dropZone1.classList.remove('dragged');
+        const file = event.dataTransfer.files[0];
+        handleFile1(file);
+    });
+    // Gestion du changement du fichier de l'image vide.
+    fileInput1.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        handleFile1(file);
+    });
+    // Cette fonction gère l’affichage de l'image vide.
+    function handleFile1(file) 
+    {
+        if (file) 
+        {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                currentFile = file; 
+                // On affiche l'image téléchargée.
+                const uploadedImage = document.createElement('img');
+                uploadedImage.src = event.target.result;
+                uploadedImage.style.maxWidth = 'auto';
+                uploadedImage.style.height = '250px';
+                uploadedImage1.innerHTML = ''; 
+                uploadedImage1.appendChild(uploadedImage);
+                // On supprime l'image d'inférence précédente.
+                inferenceImage1.parentNode.removeChild(inferenceImage1);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+    // Gestion de l’événement du survol de la zone de dépôt pour l'image point final.
+    dropZone2.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        dropZone2.classList.add('dragged');
+    });
+    // Gestion de l’événement de la sortie du survol de la zone de dépôt pour l'image point final.
+    dropZone2.addEventListener('dragleave', () => {
+        dropZone2.classList.remove('dragged');
+    });
+    // Gestion de l’événement du dépôt de l'image point final.
+    dropZone2.addEventListener('drop', (event) => {
+        event.preventDefault();
+        dropZone2.classList.remove('dragged');
+        const file = event.dataTransfer.files[0];
+        handleFile2(file);
+    });
+    // Gestion du changement du fichier de l'image point final.
+    fileInput2.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        handleFile2(file);
+    });
+    // Cette fonction gère l’affichage de l'image point final.
+    function handleFile2(file) 
+    {
+        if (file) 
+        {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                currentFile = file; 
+                // On affiche l'image téléchargée.
+                const uploadedImage = document.createElement('img');
+                uploadedImage.src = event.target.result;
+                uploadedImage.style.maxWidth = 'auto';
+                uploadedImage.style.height = '250px';
+                uploadedImage2.innerHTML = ''; 
+                uploadedImage2.appendChild(uploadedImage);
+                // On supprime l'image d'inférence précédente.
+                inferenceImage2.parentNode.removeChild(inferenceImage2);
+
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+    
+    function openImageInNewTab(imageUrl) 
+    {
+        window.open(imageUrl, '_blank');
+    }
+</script>
+</body>
+</html>
