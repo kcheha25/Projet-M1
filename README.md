@@ -6,7 +6,7 @@
 **MOALIC Yann**  
 
 
-Ce projet est réalisé en collaboration avec l'**Institut de Chimie de la Matière Condensée de Bordeaux (ICMCB)**. Il vise à automatiser le comptage des cellules dans les images microscopiques acquises lors de suivis de croissances cellulaires dans des piscines microfluidiques. Pour ce faire, nous développons un système d’apprentissage automatique capable de :
+Ce projet est réalisé en collaboration avec l'**Institut de Chimie de la Matière Condensée de Bordeaux**. Il vise à automatiser le comptage des cellules dans les images microscopiques acquises lors de suivis de croissances cellulaires dans des piscines microfluidiques. Pour ce faire, nous développons un système d’apprentissage automatique capable de :
 
 - Traiter un grand volume de données.
 - Identifier les cellules dans les images.
@@ -50,7 +50,6 @@ Les étapes clés du déploiement incluent :
 De nombreux frameworks permettent de transformer un modèle en web-app, notamment **Flask**.
 
 ### Interface de Déploiement
-Voici un exemple d'interface pour l'utilisation du modèle en production :
 
 ![Interface Déploiement](./img/26.png)
 
