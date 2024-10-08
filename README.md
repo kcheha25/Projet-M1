@@ -20,7 +20,7 @@ Pour le traitement des images, nous utilisons **Detectron2**, un framework de po
 
 ## Résultats
 
-Nous avons obtenu les performances suivantes sur notre jeu de données :
+Nous avons obtenu les performances suivantes sur notre jeu de données de Test :
 
 - **Précision** : 0.88  
 - **Recall** : 0.86  
