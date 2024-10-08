@@ -18,17 +18,6 @@ Pour le traitement des images, nous utilisons **Detectron2**, un framework de po
 
 ![Detectron2](./img/Detectron2.png)
 
-
-### Citations
-
-```bibtex
-@misc{wu2019detectron2,
-  author =       {Yuxin Wu and Alexander Kirillov and Francisco Massa and Wan-Yen Lo and Ross Girshick},
-  title =        {Detectron2},
-  howpublished = {\url{https://github.com/facebookresearch/detectron2}},
-  year =         {2019}
-}
-
 ## Résultats
 
 Nous avons obtenu les performances suivantes sur notre jeu de données :
@@ -64,4 +53,14 @@ De nombreux frameworks permettent de transformer un modèle en web-app, notammen
 Voici un exemple d'interface pour l'utilisation du modèle en production :
 
 ![Interface Déploiement](./img/26.png)
+
+### Citations
+
+```bibtex
+@misc{wu2019detectron2,
+  author =       {Yuxin Wu and Alexander Kirillov and Francisco Massa and Wan-Yen Lo and Ross Girshick},
+  title =        {Detectron2},
+  howpublished = {\url{https://github.com/facebookresearch/detectron2}},
+  year =         {2019}
+}
 
