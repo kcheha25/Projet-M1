@@ -39,26 +39,50 @@ for image_file, gt_file in zip(image_files, gt_files):
     if prefix not in results_pred:
         results_pred[prefix] = {'isolated_atoms_freq': 0, 'clusters_freq': 0, 'nanoparticles_freq': 0, 'weighted_mean_diameter': 0}
     
-    freq_isolated_atoms = 0
-    freq_clusters = 0
-    freq_nanoparticles = 0
-    weighted_sum = 0
+    freq_isolated_atoms_pred = 0
+    freq_clusters_pred = 0
+    freq_nanoparticles_pred = 0
+    weighted_sum_pred = 0
 
     for d in diameters_pred:
         if d < 0.2:
-            freq_isolated_atoms += 1
+            freq_isolated_atoms_pred += 1
         elif 0.2 <= d <= 0.5:
-            freq_clusters += 1
+            freq_clusters_pred += 1
         elif d > 0.5:
-            freq_nanoparticles += 1
-            weighted_sum += d
+            freq_nanoparticles_pred += 1
+            weighted_sum_pred += d
 
-    results_pred[prefix]['isolated_atoms_freq'] = freq_isolated_atoms
-    results_pred[prefix]['clusters_freq'] = freq_clusters
-    results_pred[prefix]['nanoparticles_freq'] = freq_nanoparticles
+    results_pred[prefix]['isolated_atoms_freq'] = freq_isolated_atoms_pred
+    results_pred[prefix]['clusters_freq'] = freq_clusters_pred
+    results_pred[prefix]['nanoparticles_freq'] = freq_nanoparticles_pred
 
-    if freq_nanoparticles > 0:
-        results_pred[prefix]['weighted_mean_diameter'] = weighted_sum / freq_nanoparticles
+    if freq_nanoparticles_pred > 0:
+        results_pred[prefix]['weighted_mean_diameter'] = weighted_sum_pred / freq_nanoparticles_pred
+
+    if prefix not in results_gt:
+        results_gt[prefix] = {'isolated_atoms_freq': 0, 'clusters_freq': 0, 'nanoparticles_freq': 0, 'weighted_mean_diameter': 0}
+    
+    freq_isolated_atoms_gt = 0
+    freq_clusters_gt = 0
+    freq_nanoparticles_gt = 0
+    weighted_sum_gt = 0
+
+    for d in diameters_gt:
+        if d < 0.2:
+            freq_isolated_atoms_gt += 1
+        elif 0.2 <= d <= 0.5:
+            freq_clusters_gt += 1
+        elif d > 0.5:
+            freq_nanoparticles_gt += 1
+            weighted_sum_gt += d
+
+    results_gt[prefix]['isolated_atoms_freq'] = freq_isolated_atoms_gt
+    results_gt[prefix]['clusters_freq'] = freq_clusters_gt
+    results_gt[prefix]['nanoparticles_freq'] = freq_nanoparticles_gt
+
+    if freq_nanoparticles_gt > 0:
+        results_gt[prefix]['weighted_mean_diameter'] = weighted_sum_gt / freq_nanoparticles_gt
 
 x_values_pred = []
 y_values_pred = []
