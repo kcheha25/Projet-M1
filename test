@@ -1,89 +1,39 @@
-import os
-import numpy as np
 import matplotlib.pyplot as plt
-from skimage import measure, io
-from scipy import ndimage
-from tensorflow.keras.models import load_model
+import numpy as np
+import os
 
-# Charger le modèle
-model = load_model("unet_membrane.hdf5")
+image_files = [...]  # Remplace par ta liste de noms d'images
 
-# Chemins vers les dossiers d'images et de masques de vérité terrain
-image_dir = "path/to/test_images"  # Remplace par le chemin vers les images de test
-gt_mask_dir = "path/to/ground_truth_masks"  # Remplace par le chemin vers les masques de vérité terrain
-
-# Définir les intervalles des surfaces en nanomètres
-surface_bins = np.arange(0.1, 1.3, 0.1)
-
-# Fonction pour calculer la surface des objets dans une image de masque
-def calculate_surface(mask):
-    labeled_mask, num_features = ndimage.label(mask)
-    regions = measure.regionprops(labeled_mask)
-    surfaces = [region.area for region in regions]
-    return surfaces
-
-# Listes pour stocker les surfaces des masques prédits et de vérité terrain
-test_masks_pred = []
-test_masks_gt = []
-image_files = sorted(os.listdir(image_dir))  # Liste des fichiers d'images
-gt_files = sorted(os.listdir(gt_mask_dir))  # Liste des fichiers de masques de vérité terrain
-
-# Charger et traiter chaque image
-for image_file, gt_file in zip(image_files, gt_files):
-    # Charger l'image et le masque de vérité terrain
-    image = io.imread(os.path.join(image_dir, image_file))
-    gt_mask = io.imread(os.path.join(gt_mask_dir, gt_file))
-    
-    # Redimensionner l'image si nécessaire pour correspondre aux dimensions d'entrée du modèle
-    image_input = np.expand_dims(image, axis=0)
-    
-    # Prédire le masque
-    pred_mask = model.predict(image_input)
-    pred_mask = pred_mask.squeeze()  # Suppression de la dimension supplémentaire
-    
-    # Binarisation des masques
-    pred_mask_bin = (pred_mask > 0.5).astype(np.uint8)
-    gt_mask_bin = (gt_mask > 0.5).astype(np.uint8)
-    
-    # Calcul des surfaces
-    surfaces_pred = calculate_surface(pred_mask_bin)
-    surfaces_gt = calculate_surface(gt_mask_bin)
-    
-    test_masks_pred.append(surfaces_pred)
-    test_masks_gt.append(surfaces_gt)
-
-# Créer une figure pour les histogrammes
-fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-
-# Dictionnaire pour les couleurs basées sur les premiers 6 caractères
-color_map = {}
-colors = plt.cm.get_cmap('tab10', len(image_files))  # Utilisation d'une carte de couleurs
+surfaces_pred_dict = {}
+surfaces_gt_dict = {}
 
 for i, (surfaces_pred, surfaces_gt) in enumerate(zip(test_masks_pred, test_masks_gt)):
-    # Obtenir le nom de l'image pour déterminer la couleur
-    image_name = os.path.basename(image_files[i])
-    prefix = image_name[:6]
-    
-    # Assigner une couleur à chaque préfixe unique
-    if prefix not in color_map:
-        color_map[prefix] = colors(len(color_map))
+    prefix = os.path.basename(image_files[i])[:6]
+    if prefix not in surfaces_pred_dict:
+        surfaces_pred_dict[prefix] = []
+    if prefix not in surfaces_gt_dict:
+        surfaces_gt_dict[prefix] = []
 
-    # Histogramme normalisé pour le masque prédit
-    axes[0].hist(surfaces_pred, bins=surface_bins, density=True, color=color_map[prefix], alpha=0.5, label=prefix)
+    surfaces_pred_dict[prefix].extend(surfaces_pred)
+    surfaces_gt_dict[prefix].extend(surfaces_gt)
 
-    # Histogramme normalisé pour le masque de vérité terrain
-    axes[1].hist(surfaces_gt, bins=surface_bins, density=True, color=color_map[prefix], alpha=0.5)
+surface_bins = np.arange(0.1, 1.3, 0.1)
+colors = plt.cm.viridis(np.linspace(0, 1, len(surfaces_pred_dict)))
 
-# Configurer les titres et les étiquettes des axes
-axes[0].set_title("Histogramme des surfaces - Prédit")
-axes[0].set_xlabel("Surface (nm)")
-axes[0].set_ylabel("Fréquence normalisée")
-axes[0].legend(color_map.keys(), title="Préfixes")
+plt.figure(figsize=(12, 6))
 
-axes[1].set_title("Histogramme des surfaces - Ground Truth")
-axes[1].set_xlabel("Surface (nm)")
-axes[1].set_ylabel("Fréquence normalisée")
-axes[1].legend(color_map.keys(), title="Préfixes")
+for i, prefix in enumerate(surfaces_pred_dict.keys()):
+    counts_pred, bins_pred = np.histogram(surfaces_pred_dict[prefix], bins=surface_bins)
+    freqs_pred = counts_pred / np.sum(counts_pred) if np.sum(counts_pred) > 0 else np.zeros_like(counts_pred)
+    plt.bar(bins_pred[:-1] + i * 0.02, freqs_pred, width=0.02, color=colors[i], alpha=0.7, label=f'Pred: {prefix}')
 
+    counts_gt, bins_gt = np.histogram(surfaces_gt_dict[prefix], bins=surface_bins)
+    freqs_gt = counts_gt / np.sum(counts_gt) if np.sum(counts_gt) > 0 else np.zeros_like(counts_gt)
+    plt.bar(bins_gt[:-1] + i * 0.02 + 0.1, freqs_gt, width=0.02, color=colors[i], alpha=0.7, label=f'GT: {prefix}', hatch='//')
+
+plt.title("Diagrammes des surfaces - Prédit et Ground Truth")
+plt.xlabel("Surface (nm)")
+plt.ylabel("Fréquence normalisée (0-1)")
+plt.legend()
 plt.tight_layout()
 plt.show()
