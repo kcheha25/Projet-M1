@@ -1,94 +1,84 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage import measure, io
-from scipy import ndimage
-from tensorflow.keras.models import load_model
+import cv2
+import torch
+from detectron2.engine import DefaultPredictor
+from detectron2.config import get_cfg
+from detectron2.structures import BoxMode, Boxes
 
-model = load_model("unet_membrane.hdf5")
-image_dir = "path/to/test_images"
-gt_mask_dir = "path/to/ground_truth_masks"
+# Configurer le modèle Detectron2
+cfg = get_cfg()
+cfg.merge_from_file("path/to/config.yaml")  # Chemin vers le fichier de configuration du modèle
+cfg.MODEL.WEIGHTS = "path/to/model_weights.pth"  # Chemin vers les poids du modèle
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # Seuil de confiance pour les prédictions
+predictor = DefaultPredictor(cfg)
 
-def calculate_properties(mask):
-    labeled_mask, num_features = ndimage.label(mask)
-    regions = measure.regionprops(labeled_mask)
-    areas = [region.area for region in regions]
-    diameters = [np.sqrt(area / np.pi) * 2 for area in areas]
-    return areas, diameters
-
+# Supposons que test_dataset_dicts est déjà chargé avec les données de votre jeu de test
 results_pred = {}
 results_gt = {}
 
-image_files = sorted(os.listdir(image_dir))
-gt_files = sorted(os.listdir(gt_mask_dir))
+num_images_with_annotations = 0
 
-for image_file, gt_file in zip(image_files, gt_files):
-    image = io.imread(os.path.join(image_dir, image_file))
-    gt_mask = io.imread(os.path.join(gt_mask_dir, gt_file))
-    image_input = np.expand_dims(image, axis=0)
-    pred_mask = model.predict(image_input)
-    pred_mask = pred_mask.squeeze()
-    pred_mask_bin = (pred_mask > 0.5).astype(np.uint8)
-    gt_mask_bin = (gt_mask > 0.5).astype(np.uint8)
+for d in test_dataset_dicts:
+    im = cv2.imread(d["file_name"])
+    outputs = predictor(im)
+
+    if "annotations" not in d or len(d["annotations"]) == 0 or len(outputs["instances"]) == 0:
+        continue 
+
+    num_images_with_annotations += 1
+
+    # Récupérer les masques prédits
+    masks_pred = outputs["instances"].pred_masks
+    areas_pred = masks_pred.area() * (0.017 ** 2)  # Conversion à nm²
+
+    # Récupérer les annotations de vérité terrain
+    bboxes_gt = [
+        BoxMode.convert(obj["bbox"], BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)
+        for obj in d["annotations"]
+    ]
     
-    areas_pred, diameters_pred = calculate_properties(pred_mask_bin)
-    areas_gt, diameters_gt = calculate_properties(gt_mask_bin)
-    
-    prefix = image_file[:6]
-    
+    # Convertir les boîtes englobantes en tenseurs
+    bboxes_gt_tensor = Boxes(torch.Tensor(bboxes_gt))
+
+    # Calculer les aires des boîtes englobantes de vérité terrain
+    areas_gt = bboxes_gt_tensor.area() * (0.017 ** 2)  # Conversion à nm²
+
+    # Calculer les diamètres à partir des aires
+    diameters_pred = [np.sqrt(area.item() / np.pi) * 2 for area in areas_pred]  # Conversion à float
+    diameters_gt = [np.sqrt(area.item() / np.pi) * 2 for area in areas_gt]  # Conversion à float
+
+    prefix = d["file_name"].split('/')[-1][:6]  # Exemple d'extraction d'un préfixe
+
+    # Traiter les masques prédits
     if prefix not in results_pred:
         results_pred[prefix] = {'isolated_atoms_freq': 0, 'clusters_freq': 0, 'nanoparticles_freq': 0, 'weighted_mean_diameter': 0}
-    
-    freq_isolated_atoms_pred = 0
-    freq_clusters_pred = 0
-    freq_nanoparticles_pred = 0
-    weighted_sum_pred = 0
 
-    for d in diameters_pred:
-        if d < 0.2:
-            freq_isolated_atoms_pred += 1
-        elif 0.2 <= d <= 0.5:
-            freq_clusters_pred += 1
-        elif d > 0.5:
-            freq_nanoparticles_pred += 1
-            weighted_sum_pred += d
+    # Calculer les fréquences et diamètres pour les prédictions
+    freq_isolated_atoms_pred = sum(1 for d in diameters_pred if d < 0.2)
+    freq_clusters_pred = sum(1 for d in diameters_pred if 0.2 <= d <= 0.5)
+    freq_nanoparticles_pred = sum(1 for d in diameters_pred if d > 0.5)
+    weighted_sum_pred = sum(d for d in diameters_pred if d > 0.5)
 
     results_pred[prefix]['isolated_atoms_freq'] += freq_isolated_atoms_pred
     results_pred[prefix]['clusters_freq'] += freq_clusters_pred
     results_pred[prefix]['nanoparticles_freq'] += freq_nanoparticles_pred
+    results_pred[prefix]['weighted_mean_diameter'] += weighted_sum_pred / (freq_nanoparticles_pred if freq_nanoparticles_pred > 0 else 1)
 
-    if freq_nanoparticles_pred > 0:
-        results_pred[prefix]['weighted_mean_diameter'] += weighted_sum_pred
-
-    if results_pred[prefix]['nanoparticles_freq'] > 0:
-        results_pred[prefix]['weighted_mean_diameter'] /= results_pred[prefix]['nanoparticles_freq']
-
+    # Traiter les masques de vérité terrain
     if prefix not in results_gt:
         results_gt[prefix] = {'isolated_atoms_freq': 0, 'clusters_freq': 0, 'nanoparticles_freq': 0, 'weighted_mean_diameter': 0}
-    
-    freq_isolated_atoms_gt = 0
-    freq_clusters_gt = 0
-    freq_nanoparticles_gt = 0
-    weighted_sum_gt = 0
 
-    for d in diameters_gt:
-        if d < 0.2:
-            freq_isolated_atoms_gt += 1
-        elif 0.2 <= d <= 0.5:
-            freq_clusters_gt += 1
-        elif d > 0.5:
-            freq_nanoparticles_gt += 1
-            weighted_sum_gt += d
+    freq_isolated_atoms_gt = sum(1 for d in diameters_gt if d < 0.2)
+    freq_clusters_gt = sum(1 for d in diameters_gt if 0.2 <= d <= 0.5)
+    freq_nanoparticles_gt = sum(1 for d in diameters_gt if d > 0.5)
+    weighted_sum_gt = sum(d for d in diameters_gt if d > 0.5)
 
     results_gt[prefix]['isolated_atoms_freq'] += freq_isolated_atoms_gt
     results_gt[prefix]['clusters_freq'] += freq_clusters_gt
     results_gt[prefix]['nanoparticles_freq'] += freq_nanoparticles_gt
-
-    if freq_nanoparticles_gt > 0:
-        results_gt[prefix]['weighted_mean_diameter'] += weighted_sum_gt
-
-    if results_gt[prefix]['nanoparticles_freq'] > 0:
-        results_gt[prefix]['weighted_mean_diameter'] /= results_gt[prefix]['nanoparticles_freq']
+    results_gt[prefix]['weighted_mean_diameter'] += weighted_sum_gt / (freq_nanoparticles_gt if freq_nanoparticles_gt > 0 else 1)
 
 x_values_pred = []
 y_values_pred = []
@@ -113,8 +103,8 @@ plt.title("Diamètre moyen des NP - Masques Prédits")
 plt.xlabel("Rapport de fréquences NP/atomes isolés")
 plt.ylabel("Diamètre moyen des nanoparticules (nm)")
 plt.grid()
-plt.xlim(0, 1)  # Ajuster la limite de l'axe x
-plt.ylim(0, None)  # Ajuster la limite de l'axe y si nécessaire
+plt.xlim(0, 1)
+plt.ylim(0, None)
 plt.legend()
 
 plt.subplot(1, 2, 2)
@@ -129,8 +119,8 @@ plt.title("Diamètre moyen des NP - Ground Truth")
 plt.xlabel("Rapport de fréquences NP/atomes isolés")
 plt.ylabel("Diamètre moyen des nanoparticules (nm)")
 plt.grid()
-plt.xlim(0, 1)  # Ajuster la limite de l'axe x
-plt.ylim(0, None)  # Ajuster la limite de l'axe y si nécessaire
+plt.xlim(0, 1)
+plt.ylim(0, None)
 plt.legend()
 
 plt.tight_layout()
