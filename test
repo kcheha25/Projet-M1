@@ -1,45 +1,131 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import os
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import measure, io
+from scipy import ndimage
+from tensorflow.keras.models import load_model
 
-image_files = [...]  # Remplace par ta liste de noms d'images
+model = load_model("unet_membrane.hdf5")
+image_dir = "path/to/test_images"
+gt_mask_dir = "path/to/ground_truth_masks"
 
-surfaces_pred_dict = {}
-surfaces_gt_dict = {}
+def calculate_properties(mask):
+    labeled_mask, num_features = ndimage.label(mask)
+    regions = measure.regionprops(labeled_mask)
+    areas = [region.area for region in regions]
+    diameters = [np.sqrt(area / np.pi) * 2 for area in areas]
+    return areas, diameters
 
-for i, (surfaces_pred, surfaces_gt) in enumerate(zip(test_masks_pred, test_masks_gt)):
-    prefix = os.path.basename(image_files[i])[:6]
-    if prefix not in surfaces_pred_dict:
-        surfaces_pred_dict[prefix] = []
-    if prefix not in surfaces_gt_dict:
-        surfaces_gt_dict[prefix] = []
+results_pred = {}
+results_gt = {}
 
-    surfaces_pred_dict[prefix].extend(surfaces_pred)
-    surfaces_gt_dict[prefix].extend(surfaces_gt)
+image_files = sorted(os.listdir(image_dir))
+gt_files = sorted(os.listdir(gt_mask_dir))
 
-surface_bins = np.arange(0.1, 1.3, 0.1)
-colors = plt.cm.viridis(np.linspace(0, 1, len(surfaces_pred_dict)))
+for image_file, gt_file in zip(image_files, gt_files):
+    image = io.imread(os.path.join(image_dir, image_file))
+    gt_mask = io.imread(os.path.join(gt_mask_dir, gt_file))
+    image_input = np.expand_dims(image, axis=0)
+    pred_mask = model.predict(image_input)
+    pred_mask = pred_mask.squeeze()
+    pred_mask_bin = (pred_mask > 0.5).astype(np.uint8)
+    gt_mask_bin = (gt_mask > 0.5).astype(np.uint8)
+    
+    areas_pred, diameters_pred = calculate_properties(pred_mask_bin)
+    areas_gt, diameters_gt = calculate_properties(gt_mask_bin)
+    
+    prefix = image_file[:6]
+    
+    if prefix not in results_pred:
+        results_pred[prefix] = {'isolated_atoms_freq': 0, 'clusters_freq': 0, 'nanoparticles_freq': 0, 'weighted_mean_diameter': 0}
+    
+    freq_isolated_atoms_pred = 0
+    freq_clusters_pred = 0
+    freq_nanoparticles_pred = 0
+    weighted_sum_pred = 0
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    for d in diameters_pred:
+        if d < 0.2:
+            freq_isolated_atoms_pred += 1
+        elif 0.2 <= d <= 0.5:
+            freq_clusters_pred += 1
+        elif d > 0.5:
+            freq_nanoparticles_pred += 1
+            weighted_sum_pred += d
 
-for i, prefix in enumerate(surfaces_pred_dict.keys()):
-    counts_pred, bins_pred = np.histogram(surfaces_pred_dict[prefix], bins=surface_bins)
-    freqs_pred = counts_pred / np.sum(counts_pred) if np.sum(counts_pred) > 0 else np.zeros_like(counts_pred)
-    axes[0].bar(bins_pred[:-1] + i * 0.02, freqs_pred, width=0.02, color=colors[i], alpha=0.7, label=prefix)
+    results_pred[prefix]['isolated_atoms_freq'] = freq_isolated_atoms_pred
+    results_pred[prefix]['clusters_freq'] = freq_clusters_pred
+    results_pred[prefix]['nanoparticles_freq'] = freq_nanoparticles_pred
 
-    counts_gt, bins_gt = np.histogram(surfaces_gt_dict[prefix], bins=surface_bins)
-    freqs_gt = counts_gt / np.sum(counts_gt) if np.sum(counts_gt) > 0 else np.zeros_like(counts_gt)
-    axes[1].bar(bins_gt[:-1] + i * 0.02, freqs_gt, width=0.02, color=colors[i], alpha=0.7, label=prefix)
+    if freq_nanoparticles_pred > 0:
+        results_pred[prefix]['weighted_mean_diameter'] = weighted_sum_pred / freq_nanoparticles_pred
 
-axes[0].set_title("Surfaces - Masques Prédits")
-axes[0].set_xlabel("Surface (nm)")
-axes[0].set_ylabel("Fréquence normalisée (0-1)")
-axes[0].legend()
+    if prefix not in results_gt:
+        results_gt[prefix] = {'isolated_atoms_freq': 0, 'clusters_freq': 0, 'nanoparticles_freq': 0, 'weighted_mean_diameter': 0}
+    
+    freq_isolated_atoms_gt = 0
+    freq_clusters_gt = 0
+    freq_nanoparticles_gt = 0
+    weighted_sum_gt = 0
 
-axes[1].set_title("Surfaces - Ground Truth")
-axes[1].set_xlabel("Surface (nm)")
-axes[1].set_ylabel("Fréquence normalisée (0-1)")
-axes[1].legend()
+    for d in diameters_gt:
+        if d < 0.2:
+            freq_isolated_atoms_gt += 1
+        elif 0.2 <= d <= 0.5:
+            freq_clusters_gt += 1
+        elif d > 0.5:
+            freq_nanoparticles_gt += 1
+            weighted_sum_gt += d
+
+    results_gt[prefix]['isolated_atoms_freq'] = freq_isolated_atoms_gt
+    results_gt[prefix]['clusters_freq'] = freq_clusters_gt
+    results_gt[prefix]['nanoparticles_freq'] = freq_nanoparticles_gt
+
+    if freq_nanoparticles_gt > 0:
+        results_gt[prefix]['weighted_mean_diameter'] = weighted_sum_gt / freq_nanoparticles_gt
+
+x_values_pred = []
+y_values_pred = []
+x_values_gt = []
+y_values_gt = []
+
+symbols = ['o', 's', '^', 'D', 'P', '*', 'x', '+']
+prefix_list = list(results_pred.keys())
+prefix_symbol_map = {prefix: symbols[i % len(symbols)] for i, prefix in enumerate(prefix_list)}
+
+plt.figure(figsize=(12, 6))
+
+plt.subplot(1, 2, 1)
+for prefix in results_pred.keys():
+    if results_pred[prefix]['isolated_atoms_freq'] > 0:
+        x_value = results_pred[prefix]['nanoparticles_freq'] / results_pred[prefix]['isolated_atoms_freq']
+        y_value = results_pred[prefix]['weighted_mean_diameter']
+        plt.scatter(x_value, y_value, label=prefix,
+                    marker=prefix_symbol_map[prefix], s=100)
+
+plt.title("Diamètre moyen des NP - Masques Prédits")
+plt.xlabel("Rapport de fréquences NP/atomes isolés")
+plt.ylabel("Diamètre moyen des nanoparticules (nm)")
+plt.grid()
+plt.xlim(0, 1)  # Ajuster la limite de l'axe x
+plt.ylim(0, None)  # Ajuster la limite de l'axe y si nécessaire
+plt.legend()
+
+plt.subplot(1, 2, 2)
+for prefix in results_gt.keys():
+    if results_gt[prefix]['isolated_atoms_freq'] > 0:
+        x_value = results_gt[prefix]['nanoparticles_freq'] / results_gt[prefix]['isolated_atoms_freq']
+        y_value = results_gt[prefix]['weighted_mean_diameter']
+        plt.scatter(x_value, y_value, label=prefix,
+                    marker=prefix_symbol_map[prefix], s=100)
+
+plt.title("Diamètre moyen des NP - Ground Truth")
+plt.xlabel("Rapport de fréquences NP/atomes isolés")
+plt.ylabel("Diamètre moyen des nanoparticules (nm)")
+plt.grid()
+plt.xlim(0, 1)  # Ajuster la limite de l'axe x
+plt.ylim(0, None)  # Ajuster la limite de l'axe y si nécessaire
+plt.legend()
 
 plt.tight_layout()
 plt.show()
