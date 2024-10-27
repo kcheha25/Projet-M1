@@ -20,20 +20,26 @@ for i, (surfaces_pred, surfaces_gt) in enumerate(zip(test_masks_pred, test_masks
 surface_bins = np.arange(0.1, 1.3, 0.1)
 colors = plt.cm.viridis(np.linspace(0, 1, len(surfaces_pred_dict)))
 
-plt.figure(figsize=(12, 6))
+fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
 for i, prefix in enumerate(surfaces_pred_dict.keys()):
     counts_pred, bins_pred = np.histogram(surfaces_pred_dict[prefix], bins=surface_bins)
     freqs_pred = counts_pred / np.sum(counts_pred) if np.sum(counts_pred) > 0 else np.zeros_like(counts_pred)
-    plt.bar(bins_pred[:-1] + i * 0.02, freqs_pred, width=0.02, color=colors[i], alpha=0.7, label=f'Pred: {prefix}')
+    axes[0].bar(bins_pred[:-1] + i * 0.02, freqs_pred, width=0.02, color=colors[i], alpha=0.7, label=prefix)
 
     counts_gt, bins_gt = np.histogram(surfaces_gt_dict[prefix], bins=surface_bins)
     freqs_gt = counts_gt / np.sum(counts_gt) if np.sum(counts_gt) > 0 else np.zeros_like(counts_gt)
-    plt.bar(bins_gt[:-1] + i * 0.02 + 0.1, freqs_gt, width=0.02, color=colors[i], alpha=0.7, label=f'GT: {prefix}', hatch='//')
+    axes[1].bar(bins_gt[:-1] + i * 0.02, freqs_gt, width=0.02, color=colors[i], alpha=0.7, label=prefix)
 
-plt.title("Diagrammes des surfaces - Prédit et Ground Truth")
-plt.xlabel("Surface (nm)")
-plt.ylabel("Fréquence normalisée (0-1)")
-plt.legend()
+axes[0].set_title("Surfaces - Masques Prédits")
+axes[0].set_xlabel("Surface (nm)")
+axes[0].set_ylabel("Fréquence normalisée (0-1)")
+axes[0].legend()
+
+axes[1].set_title("Surfaces - Ground Truth")
+axes[1].set_xlabel("Surface (nm)")
+axes[1].set_ylabel("Fréquence normalisée (0-1)")
+axes[1].legend()
+
 plt.tight_layout()
 plt.show()
