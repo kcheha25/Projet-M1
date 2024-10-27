@@ -1,7 +1,0 @@
-    # Obtenir les indices triés
-    sorted_indices_pred = sorted(range(len(bboxes_pred)), key=lambda i: tuple(bboxes_pred.tensor[i]))
-    sorted_indices_gt = sorted(range(len(bboxes_gt)), key=lambda i: tuple(bboxes_gt.tensor[i]))
-
-    # Créer des objets Boxes à partir des indices triés pour conserver l'attribut area
-    sorted_bboxes_pred = Boxes(bboxes_pred.tensor[sorted_indices_pred])
-    sorted_bboxes_gt = Boxes(bboxes_gt.tensor[sorted_indices_gt])
