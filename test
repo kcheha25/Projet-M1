@@ -1,2 +1,0 @@
-    x_ticks = np.arange(0, max(bins_pred), step=2)  # Ajuster le pas selon les besoins
-    axs[0].set_xticks(x_ticks)
