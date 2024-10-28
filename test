@@ -1,40 +1,18 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-import cv2
+from skimage import io
 import os
-from collections import defaultdict
 
 # Paramètres
 resolution_nm_per_pixel = 0.038
-image_folder = 'images'
-mask_folder = 'masks'
+image_dir = 'images'
+gt_mask_dir = 'masks'
 
 # Charger le modèle U-Net
 model = tf.keras.models.load_model('path_to_your_unet_model')
 
-def load_images(folder):
-    images = {}
-    for filename in sorted(os.listdir(folder)):
-        prefix = filename[:6]  # Extraire le préfixe (6 premiers caractères)
-        img_path = os.path.join(folder, filename)
-        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)  # Lire en niveaux de gris
-        img = cv2.resize(img, (256, 256))  # Ajuster la taille si nécessaire
-        if prefix not in images:
-            images[prefix] = []
-        images[prefix].append(img)
-    return images
-
-# Charger les images de test et les masques de vérité terrain, groupés par préfixe
-test_images = load_images(image_folder)
-ground_truth_masks = load_images(mask_folder)
-
-# Prédire les masques et organiser les résultats par préfixe
-predicted_masks_by_prefix = {}
-for prefix, images in test_images.items():
-    images = np.array(images)
-    predicted_masks_by_prefix[prefix] = model.predict(images)
-
+# Fonction pour calculer les aires en nanomètres
 def calculate_area(mask):
     # Compter les pixels de chaque objet détecté
     num_objects, object_labels = cv2.connectedComponents(mask.astype(np.uint8))
@@ -45,10 +23,12 @@ def calculate_area(mask):
         areas.append(area_nm)
     return areas
 
+# Fonction pour normaliser les comptages d'objets
 def normalize_counts(counts):
     total_count = sum(counts)
     return [count / total_count for count in counts] if total_count > 0 else counts
 
+# Fonction pour afficher l'histogramme en barres
 def plot_histogram(test_areas, gt_areas, prefix):
     fig, axs = plt.subplots(1, 2, figsize=(12, 6))
     axs[0].bar(range(len(test_areas)), normalize_counts(test_areas))
@@ -64,15 +44,37 @@ def plot_histogram(test_areas, gt_areas, prefix):
     plt.tight_layout()
     plt.show()
 
-# Calculer et afficher les histogrammes pour chaque groupe d'images
-for prefix, pred_masks in predicted_masks_by_prefix.items():
-    test_areas = []
-    gt_areas = []
+# Dictionnaire pour accumuler les aires par préfixe d'image
+predicted_areas_by_prefix = {}
+gt_areas_by_prefix = {}
 
-    # Accumuler les surfaces pour toutes les images d'un même groupe
-    for pred_mask, gt_mask in zip(pred_masks, ground_truth_masks[prefix]):
-        test_areas.extend(calculate_area(pred_mask))
-        gt_areas.extend(calculate_area(gt_mask))
+# Boucle sur chaque image
+for image_file in sorted(os.listdir(image_dir)):
+    prefix = image_file[:6]  # Extraire le préfixe (6 premiers caractères)
+    
+    # Charger et préparer l'image et le masque de vérité terrain
+    image = io.imread(os.path.join(image_dir, image_file))
+    gt_file = image_file.replace('image', 'mask')  # Assumer que le nom du masque correspond au fichier image
+    gt_mask = io.imread(os.path.join(gt_mask_dir, gt_file))
 
-    # Afficher l'histogramme pour le groupe de préfixe donné
-    plot_histogram(test_areas, gt_areas, prefix)
+    # Redimensionner l'image pour correspondre aux dimensions d'entrée du modèle
+    image_input = np.expand_dims(image, axis=0)
+    
+    # Prédire le masque
+    pred_mask = model.predict(image_input)[0]  # Extraire la première prédiction du lot
+
+    # Calcul des aires pour le masque prédit et le masque de vérité terrain
+    pred_areas = calculate_area(pred_mask)
+    gt_areas = calculate_area(gt_mask)
+    
+    # Accumuler les aires pour chaque groupe de préfixe
+    if prefix not in predicted_areas_by_prefix:
+        predicted_areas_by_prefix[prefix] = []
+        gt_areas_by_prefix[prefix] = []
+        
+    predicted_areas_by_prefix[prefix].extend(pred_areas)
+    gt_areas_by_prefix[prefix].extend(gt_areas)
+
+# Afficher les histogrammes pour chaque groupe d'images ayant le même préfixe
+for prefix in predicted_areas_by_prefix:
+    plot_histogram(predicted_areas_by_prefix[prefix], gt_areas_by_prefix[prefix], prefix)
