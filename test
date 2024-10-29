@@ -1,9 +1,12 @@
-import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io
 import os
 import cv2
+import torch
+from detectron2 import model_zoo
+from detectron2.config import get_cfg
+from detectron2.engine import DefaultPredictor
 
 # Paramètres
 resolution_nm_per_pixel = 0.038
@@ -11,8 +14,12 @@ diameter_bins = np.arange(0, 2.1, 0.1)  # Plages de diamètre de 0.1 nm jusqu'à
 image_dir = 'images'
 gt_mask_dir = 'masks'
 
-# Charger le modèle U-Net
-model = tf.keras.models.load_model('path_to_your_unet_model')
+# Configurer le modèle Detectron2
+cfg = get_cfg()
+cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # Seuil de score
+predictor = DefaultPredictor(cfg)
 
 # Fonction pour calculer les diamètres à partir des aires en nanomètres
 def calculate_diameters(mask):
@@ -71,20 +78,18 @@ diameters_by_prefix = {}
 for image_file in sorted(os.listdir(image_dir)):
     prefix = image_file[:6]
     image = io.imread(os.path.join(image_dir, image_file))
-    gt_file = image_file.replace('image', 'mask')
-    gt_mask = io.imread(os.path.join(gt_mask_dir, gt_file))
+    
+    # Prédire les masques avec Detectron2
+    outputs = predictor(image)
+    
+    # Extraire les masques prédits
+    pred_masks = outputs["instances"].pred_masks.cpu().numpy() if outputs["instances"].pred_masks else np.zeros_like(np.zeros((1, 1)))
 
-    if gt_mask.ndim == 3:
-        gt_mask = gt_mask[..., 0]
-    gt_mask = (gt_mask > 0).astype(np.uint8)
-
-    # Redimensionner l'image et prédire le masque
-    image_input = np.expand_dims(image, axis=0)
-    pred_mask = model.predict(image_input)[0]
-    if pred_mask.ndim == 3:
-        pred_mask = pred_mask[..., 0]
-
-    pred_diameters = calculate_diameters(pred_mask)
+    # Calculer les diamètres pour chaque masque prédict
+    pred_diameters = []
+    for mask in pred_masks:
+        diameters = calculate_diameters(mask)
+        pred_diameters.extend(diameters)
     
     # Accumuler les diamètres pour chaque préfixe
     if prefix not in diameters_by_prefix:
