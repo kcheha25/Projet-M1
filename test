@@ -1,4 +1,3 @@
-
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -45,16 +44,21 @@ def calculate_plot_ratios(diameters_by_prefix):
     for prefix, diameters in diameters_by_prefix.items():
         freqs = normalize_diameter_frequencies(diameters, diameter_bins)
         
-        # Calcul de NP / total pour les diamètres > 0.5 nm
+        # Calcul de NP / Total pour les diamètres > 0.5 nm
         index_above_05 = diameter_bins[:-1] > 0.5
-        NP_total_ratio = freqs[index_above_05].sum() / freqs.sum()
+        NP = freqs[index_above_05].sum()  # Somme des fréquences normalisées pour diamètres > 0.5 nm
+        Total = freqs.sum()  # Somme de toutes les fréquences normalisées
+        NP_total_ratio = NP / Total if Total > 0 else 0
         
-        # Calcul de la somme des valeurs normalisées divisées par la médiane pour diamètres > 0.5 nm
-        y_sum = sum((freq / np.median(diameter_bins[i:i + 2])) 
-                    for i, freq in enumerate(freqs) 
-                    if diameter_bins[i] > 0.5)
-        y_value = y_sum / freqs[index_above_05].sum()
+        # Calcul de la valeur y
+        y_sum = 0
+        for i, freq in enumerate(freqs):
+            if diameter_bins[i] > 0.5:
+                median = np.median(diameter_bins[i:i + 2])  # Calculer la médiane pour la plage
+                y_sum += freq / median
         
+        y_value = y_sum / NP if NP > 0 else 0  # Diviser la somme par NP
+
         x_values.append(NP_total_ratio)
         y_values.append(y_value)
         
@@ -87,7 +91,7 @@ for image_file in sorted(os.listdir(image_dir)):
         diameters_by_prefix[prefix] = []
     diameters_by_prefix[prefix].extend(pred_diameters)
 
-# Calculer les ratios NP/total et valeurs y pour chaque groupe
+# Calculer les ratios NP/Total et valeurs y pour chaque groupe
 x_vals, y_vals = calculate_plot_ratios(diameters_by_prefix)
 
 # Dessiner le nuage de points
@@ -96,7 +100,7 @@ for i, prefix in enumerate(diameters_by_prefix.keys()):
     plt.scatter(x_vals[i], y_vals[i], label=prefix, s=100)  # chaque point est un groupe
 
 plt.xlabel("Rapport NP / Total")
-plt.ylabel("Valeur normalisée / médiane des diamètres > 0.5 nm")
+plt.ylabel("Valeur normalisée / NP pour diamètres > 0.5 nm")
 plt.legend(title="Groupes d'images")
 plt.title("Nuage de points des fréquences normalisées par diamètre")
 plt.show()
