@@ -1,6 +1,7 @@
-if len(outputs["instances"].pred_masks) > 0:
-    # Combiner tous les masques en un seul masque binaire
-    pred_masks = outputs["instances"].pred_masks.cpu().numpy()  # Convertir tous les masques en un tableau numpy
-    pred_mask = np.any(pred_masks, axis=0).astype(np.uint8)  # Utiliser np.any pour fusionner les masques
-else:
-    pred_mask = np.zeros_like(gt_mask)
+def calculate_diameter_from_area(surface_nm2):
+    return 2 * math.sqrt(surface_nm2 / math.pi)
+
+# Exemple d'utilisation
+example_surface_nm2 = 0.0314
+calculated_diameter = calculate_diameter_from_area(example_surface_nm2)
+print("Diameter:", calculated_diameter)
