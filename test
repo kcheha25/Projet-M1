@@ -82,10 +82,13 @@ for image_file in sorted(os.listdir(image_dir)):
     # Prédire les masques avec Detectron2
     outputs = predictor(image)
     
-    # Extraire les masques prédits
-    pred_masks = outputs["instances"].pred_masks.cpu().numpy() if outputs["instances"].pred_masks else np.zeros_like(np.zeros((1, 1)))
+    # Vérifier si des masques sont présents
+    if outputs["instances"].pred_masks.numel() > 0:
+        pred_masks = outputs["instances"].pred_masks.cpu().numpy()
+    else:
+        pred_masks = np.zeros((1, image.shape[0], image.shape[1]))  # Créer un masque vide si aucun n'est trouvé
 
-    # Calculer les diamètres pour chaque masque prédict
+    # Calculer les diamètres pour chaque masque prédit
     pred_diameters = []
     for mask in pred_masks:
         diameters = calculate_diameters(mask)
