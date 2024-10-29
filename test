@@ -1,7 +1,0 @@
-def calculate_diameter_from_area(surface_nm2):
-    return 2 * math.sqrt(surface_nm2 / math.pi)
-
-# Exemple d'utilisation
-example_surface_nm2 = 0.0314
-calculated_diameter = calculate_diameter_from_area(example_surface_nm2)
-print("Diameter:", calculated_diameter)
