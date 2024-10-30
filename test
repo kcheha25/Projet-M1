@@ -1,0 +1,112 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import io
+import os
+import cv2
+
+# Paramètres
+resolution_nm_per_pixel = 0.038
+diameter_bins = np.arange(0, 2.1, 0.1)  # Plages de diamètre de 0.1 nm jusqu'à 2 nm
+image_dir = 'images'
+gt_mask_dir = 'masks'
+
+# Charger le modèle U-Net
+model = tf.keras.models.load_model('path_to_your_unet_model')
+
+# Fonction pour calculer les aires en nanomètres
+def calculate_area(mask):
+    if mask.ndim == 3:
+        mask = mask[..., 0]
+    _, binary_mask = cv2.threshold(mask, 0.5, 1, cv2.THRESH_BINARY)
+    binary_mask = (binary_mask * 255).astype(np.uint8)
+    
+    num_objects, object_labels = cv2.connectedComponents(binary_mask)
+    areas = []
+    for obj in range(1, num_objects):
+        area_pixels = np.sum(object_labels == obj)
+        area_nm2 = area_pixels * (resolution_nm_per_pixel ** 2)
+        areas.append(area_nm2)
+    return areas
+
+# Fonction pour normaliser les comptages d'objets par rapport aux aires
+def normalize_counts(areas):
+    total_area = sum(areas)
+    return [area / total_area for area in areas] if total_area > 0 else areas
+
+# Fonction pour calculer les diamètres à partir des aires
+def calculate_diameters(areas):
+    diameters = [2 * np.sqrt(area / np.pi) for area in areas]
+    return diameters
+
+# Calcul des ratios NP/total et de l'axe y pour chaque groupe
+def calculate_plot_ratios(diameters_by_prefix):
+    x_values, y_values = [], []
+    
+    for prefix, diameters in diameters_by_prefix.items():
+        freqs = normalize_counts(diameters)
+        
+        # Calcul de NP / total pour les diamètres > 0.5 nm
+        index_above_05 = diameter_bins[:-1] > 0.5
+        NP_total_ratio = freqs[index_above_05].sum() / freqs.sum()
+        
+        # Calcul de la somme des valeurs normalisées divisées par la médiane pour diamètres > 0.5 nm
+        y_sum = sum((freq / np.median(diameter_bins[i:i + 2])) 
+                    for i, freq in enumerate(freqs) 
+                    if diameter_bins[i] > 0.5)
+        y_value = y_sum / freqs[index_above_05].sum()
+        
+        x_values.append(NP_total_ratio)
+        y_values.append(y_value)
+        
+    return x_values, y_values
+
+# Dictionnaire pour accumuler les aires par préfixe d'image
+predicted_areas_by_prefix = {}
+
+# Boucle sur chaque image
+for image_file in sorted(os.listdir(image_dir)):
+    prefix = image_file[:6]  # Extraire le préfixe (6 premiers caractères)
+    
+    # Charger l'image et le masque de vérité terrain
+    image = io.imread(os.path.join(image_dir, image_file))
+    gt_file = image_file.replace('image', 'mask')
+    gt_mask = io.imread(os.path.join(gt_mask_dir, gt_file))
+
+    # Assurez-vous que le masque de vérité terrain est binaire
+    if gt_mask.ndim == 3:
+        gt_mask = gt_mask[..., 0]
+    gt_mask = (gt_mask > 0).astype(np.uint8)
+
+    # Redimensionner l'image pour correspondre aux dimensions d'entrée du modèle
+    image_input = np.expand_dims(image, axis=0)
+
+    # Prédire le masque
+    pred_mask = model.predict(image_input)[0]
+    if pred_mask.ndim == 3:
+        pred_mask = pred_mask[..., 0]
+
+    # Calcul des aires pour le masque prédit
+    pred_areas = calculate_area(pred_mask)
+    
+    # Calcul des diamètres pour chaque aire
+    pred_diameters = calculate_diameters(pred_areas)
+
+    # Accumuler les diamètres pour chaque préfixe
+    if prefix not in predicted_areas_by_prefix:
+        predicted_areas_by_prefix[prefix] = []
+    predicted_areas_by_prefix[prefix].extend(pred_diameters)
+
+# Calculer les ratios NP/total et valeurs y pour chaque groupe
+x_vals, y_vals = calculate_plot_ratios(predicted_areas_by_prefix)
+
+# Dessiner le nuage de points
+plt.figure(figsize=(10, 6))
+for i, prefix in enumerate(predicted_areas_by_prefix.keys()):
+    plt.scatter(x_vals[i], y_vals[i], label=prefix, s=100)
+
+plt.xlabel("Rapport NP / Total")
+plt.ylabel("Valeur normalisée / médiane des diamètres > 0.5 nm")
+plt.legend(title="Groupes d'images")
+plt.title("Nuage de points des fréquences normalisées par diamètre")
+plt.show()
