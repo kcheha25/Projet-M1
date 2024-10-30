@@ -1,5 +1,31 @@
-index_above_05 = (diameter_bins[:-1] > 0.5)  # Masque booléen correspondant aux fréquences pour les diamètres > 0.5 nm
-if len(index_above_05) != len(freqs):
-    index_above_05 = index_above_05[:len(freqs)]  # Ajuste la longueur si nécessaire
+def calculate_normalized_frequency_per_bin(diameters):
+    # Convertir les diamètres en tableau NumPy
+    diameters = np.array(diameters)
+    # Calculer l'histogramme des fréquences pour chaque plage de diamètre
+    counts, _ = np.histogram(diameters, bins=diameter_bins)
+    # Normaliser les fréquences
+    total_count = counts.sum()
+    freqs_per_bin = counts / total_count if total_count > 0 else counts
+    return freqs_per_bin
 
-NP_total_ratio = freqs[index_above_05].sum() / freqs.sum()
+# Calcul des ratios NP/total et de l'axe y pour chaque groupe
+def calculate_plot_ratios(diameters_by_prefix):
+    x_values, y_values = [], []
+    
+    for prefix, diameters in diameters_by_prefix.items():
+        freqs_per_bin = calculate_normalized_frequency_per_bin(diameters)
+        
+        # Calcul de NP / total pour les diamètres > 0.5 nm
+        index_above_05 = diameter_bins[:-1] > 0.5
+        NP_total_ratio = freqs_per_bin[index_above_05].sum() / freqs_per_bin.sum()
+        
+        # Calcul de la somme des valeurs normalisées divisées par la médiane pour diamètres > 0.5 nm
+        y_sum = sum((freq / np.median(diameter_bins[i:i + 2])) 
+                    for i, freq in enumerate(freqs_per_bin) 
+                    if diameter_bins[i] > 0.5)
+        y_value = y_sum / freqs_per_bin[index_above_05].sum()
+        
+        x_values.append(NP_total_ratio)
+        y_values.append(y_value)
+        
+    return x_values, y_values
